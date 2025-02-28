@@ -21,7 +21,7 @@ Returns:
         parts = line.split("|")
         record = {header[i]: parts[i].strip() if i < len(parts) else "" for i in range(len(header))}
         list_of_cards.append(record)
-        return list_of_cards
+    return list_of_cards
 
 st.title("Anki Card Generator")
 
@@ -35,31 +35,45 @@ if st.button("Submit"):
     if user_input:
         st.session_state.cards = create_list_of_cards(user_input)
         st.session_state.current_card = 0
-        st.success("Cards have been parsed successfully!")
+        current_card = st.session_state.current_card
         user_input = ""
-
 
 if st.session_state.cards:
     current_card = st.session_state.current_card
     fields = st.session_state.cards[current_card]
+    
+    col1middle, col2middle= st.columns([2, 1])
+        
+    with col1middle:
+        col1, col2, col3= st.columns(3)
 
-    st.write(f"Card {current_card + 1}/{len(st.session_state.cards)}")
+        if col1.button("Previous") and current_card > 0:
+            st.session_state.current_card -= 1
 
-    for key, value in fields.items():
-        new_value = st.text_input(f"{key}", value=value)
-        fields[key] = new_value
+        if col3.button("Next") and current_card < len(st.session_state.cards) - 1:
+            st.session_state.current_card += 1
+        
+        current_card = st.session_state.current_card
+        fields = st.session_state.cards[current_card]
 
-    col1, col2 = st.columns(2)
-    if col1.button("Previous") and current_card > 0:
-        st.session_state.current_card -= 1
+        with col2:
+            st.write(f"Card {current_card + 1}/{len(st.session_state.cards)}")
+    
+    with col1middle:
+        for key, value in fields.items():
+            new_value = st.text_input(f"{key}", value=value)
+            fields[key] = new_value
 
-    if col2.button("Next") and current_card < len(st.session_state.cards) - 1:
-        st.session_state.current_card += 1
+    with col2middle:
+        img = st.file_uploader("upload up to 2 images", type=["png", "jpg", "jpeg"], key="img2_upload")
 
-    st.session_state.cards[current_card] = fields
-    # File upload for images
-    img1 = st.file_uploader("Upload Image 1", type=["png", "jpg", "jpeg"], key="img1_upload")
-    img2 = st.file_uploader("Upload Image 2", type=["png", "jpg", "jpeg"], key="img2_upload")
+    if col2middle.button("Add Card"):
+        st.success("Card added!")
+
+
+# File upload for images
+    
+    
 
 
 
