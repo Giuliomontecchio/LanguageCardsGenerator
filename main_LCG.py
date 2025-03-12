@@ -1,6 +1,8 @@
 import streamlit as st
 import genanki
 from gtts import gTTS
+from PIL import Image
+from io import BytesIO
 
 # Parser function
 def create_list_of_cards(src_text: str) -> list[dict]:
@@ -23,8 +25,6 @@ Returns:
         record = {header[i]: parts[i].strip() if i < len(parts) else "" for i in range(len(header))}
         list_of_cards.append(record)
     return list_of_cards
-
-
 
 def color_gender(field, selected_language):
     if selected_language == "de":
@@ -80,8 +80,9 @@ def create_note(fields, selected_language):
 
     # generate audio
     for i, key in enumerate(['baseT','fullT', 's1T', 's2T']):
+        if fields[key] == "": continue
         sound = gTTS(text=fields[key], lang=selected_language, slow=False)
-        sound.save(f"sound{fields['baseT']}_{i}.mp3") 
+        sound.save(f"sound{fields['baseT']}_{i}.mp3")
 
     # color the record according to the gender (after sound to avoid reading of html)
         fields['fullT'] = color_gender(fields['fullT'], selected_language)
@@ -109,55 +110,70 @@ def create_deck():
     package.media_files = session_state.all_media
     package.write_to_file('Mein_Deutsch.apkg')
 
+def get_image_urls(keyword, count=20):
+    """Mock function to return image URLs. Replace with an actual API call."""
+    return [f"https://via.placeholder.com/150?text={keyword}+{i}" for i in range(count)]
+
+def load_images(urls):
+    """Download and return images from URLs."""
+    images = []
+    for url in urls:
+        response = requests.get(url)
+        if response.status_code == 200:
+            img = Image.open(BytesIO(response.content))
+            images.append(img)
+    return images
+
 def main():
     st.title("Anki Card Generator")
-
+    # Initialize deck and all_media in session_state (if not already initialized)
     if 'cards' not in st.session_state:
         st.session_state.cards = []
         st.session_state.current_card = 0
+        st.session_state.submitted = False  # Track submission state
+    if "deck" not in st.session_state:
+        deck_id = 87654321  
+        deck_name = 'Mein_Deutsch'
+        st.session_state.deck = genanki.Deck(deck_id, deck_name)  # Store the deck
+    if "all_media" not in st.session_state:
+        st.session_state.all_media = []  # Store media lis
+    if 'index' not in st.session_state:
+        st.session_state.index = 0
+    if 'images' not in st.session_state:
+        st.session_state.images = []
+    if 'urls' not in st.session_state:
+        st.session_state.urls = []
+    if 'selected_language' not in st.session_state:
+        st.session_state.selected_language = "de"
 
-    # Define language options with flag emojis
-    language_options = [
-    "de",
-    "es",
-    "fr"
-    ]
+    if not st.session_state.submitted:
 
-    # Create the selectbox
-    selected_language = st.selectbox(
-        "Choose a language",
-        language_options,
-        index=0  # Default to the first option (English)
-    )
+        # Define language options with flag emojis
+        language_options = ["de", "es", "fr"]
 
-    # Extract the language name (remove the flag emoji for processing)
+        # Create the selectbox
+        selected_language = st.selectbox(
+            "Choose a language",
+            language_options,
+            index=0 
+        )
 
-    user_input = st.text_area("Paste your text here (use '|' as field delimiter, one line per card):")
+        st.session_state.selected_language = selected_language
 
-    if st.button("Submit"):
-        if user_input:
-            st.session_state.cards = create_list_of_cards(user_input)
-            st.session_state.current_card = 0
+        user_input = st.text_area("Paste your text here (use '|' as field delimiter, one line per card):")
+
+        if st.button("Submit"):
+            if user_input:
+                st.session_state.cards = create_list_of_cards(user_input)
+                st.session_state.current_card = 0
+                st.session_state.submitted = True  # Hide inputs after submission
+                st.rerun()
+    else:
+        if st.session_state.cards:
             current_card = st.session_state.current_card
-            user_input = ""
-
-        # Initialize deck and all_media in session_state (if not already initialized)
-        if "deck" not in st.session_state:
-            deck_id = 87654321  
-            deck_name = 'Mein_Deutsch'
-            st.session_state.deck = genanki.Deck(deck_id, deck_name)  # Store the deck
-
-        if "all_media" not in st.session_state:
-            st.session_state.all_media = []  # Store media lis
-
-    if st.session_state.cards:
-        current_card = st.session_state.current_card
-        fields = st.session_state.cards[current_card]
-        
-        col1middle, col2middle= st.columns([2, 1])
+            fields = st.session_state.cards[current_card]
             
-        with col1middle:
-            col1, col2, col3= st.columns(3)
+            col1, col2, col3, col4, col5 = st.columns(5)
 
             if col1.button("Previous") and current_card > 0:
                 st.session_state.current_card -= 1
@@ -170,28 +186,47 @@ def main():
 
             with col2:
                 st.write(f"Card {current_card + 1}/{len(st.session_state.cards)}")
-        
-        with col1middle:
-            for key, value in fields.items():
-                new_value = st.text_input(f"{key}", value=value)
-                fields[key] = new_value
+            
+            if col4.button("Image"):
+                st.session_state.urls = get_image_urls(fields['baseT'])
+                st.session_state.images = load_images(st.session_state.urls)
+                st.session_state.index = 0
+                st.rerun()
 
-        with col2middle:
-            img = st.file_uploader("upload up to 2 images", type=["png", "jpg", "jpeg"], key="img2_upload")
+            if col5.button("Add Card"):
+                create_note(fields, st.session_state.selected_language)
+                st.success("Card added!")
 
-        with col2middle:
-            success_placeholder = st.empty()  # Create a placeholder for success message
+        if st.session_state.images:
+            cols = st.columns(4)
+            for i in range(4):
+                idx = st.session_state.index + i
+                if idx < len(st.session_state.images):
+                    if cols[i].button(f"Select {idx+1}"):
+                        st.session_state.selected_image = st.session_state.urls[idx]
+                    cols[i].image(st.session_state.images[idx], use_column_width=True)
 
-            if st.button("Add Card"):
-                create_note(fields, selected_language)
-                success_placeholder.success("Card added!")  # Show success message inside col2middle
+            col1, col2 = st.columns(2)
+            if col1.button("Previous") and st.session_state.index > 0:
+                st.session_state.index -= 4
+            if col2.button("Next") and st.session_state.index + 4 < len(st.session_state.images):
+                st.session_state.index += 4
 
-            if st.button("Add Deck"):
-                create_deck()
-                success_placeholder.success("Deck added!")  # Show success message inside col2middle
+            if 'selected_image' in st.session_state:
+                st.subheader("Selected Image")
+                st.image(st.session_state.selected_image, use_column_width=True)
 
+            if 'selected_image' in st.session_state:
+                st.subheader("Selected Image")
+                st.image(st.session_state.selected_image, use_column_width=True)
+            
+        for key, value in fields.items():
+            new_value = st.text_input(f"{key}", value=value)
+            fields[key] = new_value
 
-
+        if st.button("Add Deck"):
+            create_deck()
+            st.success("Deck added!")  # Show success message inside col2middle
 
 if __name__ == "__main__":
     main()
