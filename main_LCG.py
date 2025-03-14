@@ -5,6 +5,7 @@ from PIL import Image
 from io import BytesIO
 import requests
 from bs4 import BeautifulSoup
+from st_clickable_images import clickable_images
 
 # Parser function
 def create_list_of_cards(src_text: str) -> list[dict]:
@@ -153,10 +154,10 @@ def main():
         st.session_state.deck = genanki.Deck(deck_id, deck_name)  # Store the deck
     if "all_media" not in st.session_state:
         st.session_state.all_media = []  # Store media lis
-    if 'index' not in st.session_state:
+    if 'index' not in st.session_state: # index to go up for each added card?
         st.session_state.index = 0
-    if 'images' not in st.session_state:
-        st.session_state.images = []
+    if 'images_to_add' not in st.session_state:
+        st.session_state.images_to_add = []
     if 'urls' not in st.session_state:
         st.session_state.urls = []
     if 'selected_language' not in st.session_state:
@@ -185,6 +186,29 @@ def main():
                 st.session_state.submitted = True  # Hide inputs after submission
                 st.rerun()
     else:
+        if st.session_state.urls:
+            if "clicked" not in st.session_state:  # Ensure `clicked` is only computed once
+                st.session_state.image_clicked = clickable_images(
+                    st.session_state.urls, 
+                    div_style={"display": "flex", "justify-content": "center", "flex-wrap": "wrap"}, 
+                    key="image_viewer"
+                )
+
+            if st.button("Add images"):
+                images_to_save = load_images(st.session_state.images_to_add)
+                for i,image in enumerate(images_to_save):
+                    image.save(f"image{st.session_state.index}_{i}.png")
+                st.success("Images saved successfully!")
+                st.session_state.urls = []
+                del st.session_state["image_clicked"]
+                st.rerun()
+
+            if st.session_state.image_clicked>-1:
+                st.subheader("Selected images")
+                st.session_state.images_to_add.append(st.session_state.urls[st.session_state.image_clicked])
+                st.session_state.images_to_add = st.session_state.images_to_add[-2:] 
+                st.image(st.session_state.images_to_add)
+
         if st.session_state.cards:
             current_card = st.session_state.current_card
             fields = st.session_state.cards[current_card]
@@ -205,36 +229,11 @@ def main():
             
             if col4.button("Image"):
                 st.session_state.urls = get_image_urls(fields['baseT'], st.session_state.selected_language)
-                st.session_state.images = load_images(st.session_state.urls)
-                st.session_state.index = 0
                 st.rerun()
 
             if col5.button("Add Card"):
                 create_note(fields, st.session_state.selected_language)
                 st.success("Card added!")
-
-        if st.session_state.images:
-            cols = st.columns(4)
-            for i in range(4):
-                idx = st.session_state.index + i
-                if idx < len(st.session_state.images):
-                    if cols[i].button(f"Select {idx+1}"):
-                        st.session_state.selected_image = st.session_state.urls[idx]
-                    cols[i].image(st.session_state.images[idx], use_container_width=True)
-
-            col1, col2 = st.columns(2)
-            if col1.button("Previous Image") and st.session_state.index > 0:
-                st.session_state.index -= 4
-            if col2.button("Next Image") and st.session_state.index + 4 < len(st.session_state.images):
-                st.session_state.index += 4
-
-            if 'selected_image' in st.session_state:
-                st.subheader("Selected Image")
-                st.image(st.session_state.selected_image)
-
-            if 'selected_image' in st.session_state:
-                st.subheader("Selected Image")
-                st.image(st.session_state.selected_image)
             
         for key, value in fields.items():
             new_value = st.text_input(f"{key}", value=value)
