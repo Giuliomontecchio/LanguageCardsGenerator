@@ -3,6 +3,8 @@ import genanki
 from gtts import gTTS
 from PIL import Image
 from io import BytesIO
+import requests
+from bs4 import BeautifulSoup
 
 # Parser function
 def create_list_of_cards(src_text: str) -> list[dict]:
@@ -110,9 +112,23 @@ def create_deck():
     package.media_files = session_state.all_media
     package.write_to_file('Mein_Deutsch.apkg')
 
-def get_image_urls(keyword, count=20):
-    """Mock function to return image URLs. Replace with an actual API call."""
-    return [f"https://via.placeholder.com/150?text={keyword}+{i}" for i in range(count)]
+def get_image_urls(keyword:str, subdomain:str)->list[str]:
+    # Starting from a keyword, creates a list of URLs which direct to images.
+
+    # Create a Google Images URL for the search term
+    search_url = f"https://www.google.{subdomain}/search?q={keyword}&tbm=isch"
+    # Send an HTTP GET request to the URL
+    response = requests.get(search_url)
+    # Parse the HTML content of the page
+    soup = BeautifulSoup(response.text, 'html.parser')
+    # Find image links in the page source
+    list_of_tags = soup.find_all("img")
+    list_of_urls = []
+    for tag in list_of_tags:
+        list_of_urls.append(tag.get("src"))
+    # On google image, first one is google logo 
+    list_of_urls.pop(0)
+    return list_of_urls
 
 def load_images(urls):
     """Download and return images from URLs."""
@@ -188,7 +204,7 @@ def main():
                 st.write(f"Card {current_card + 1}/{len(st.session_state.cards)}")
             
             if col4.button("Image"):
-                st.session_state.urls = get_image_urls(fields['baseT'])
+                st.session_state.urls = get_image_urls(fields['baseT'], st.session_state.selected_language)
                 st.session_state.images = load_images(st.session_state.urls)
                 st.session_state.index = 0
                 st.rerun()
@@ -204,21 +220,21 @@ def main():
                 if idx < len(st.session_state.images):
                     if cols[i].button(f"Select {idx+1}"):
                         st.session_state.selected_image = st.session_state.urls[idx]
-                    cols[i].image(st.session_state.images[idx], use_column_width=True)
+                    cols[i].image(st.session_state.images[idx], use_container_width=True)
 
             col1, col2 = st.columns(2)
-            if col1.button("Previous") and st.session_state.index > 0:
+            if col1.button("Previous Image") and st.session_state.index > 0:
                 st.session_state.index -= 4
-            if col2.button("Next") and st.session_state.index + 4 < len(st.session_state.images):
+            if col2.button("Next Image") and st.session_state.index + 4 < len(st.session_state.images):
                 st.session_state.index += 4
 
             if 'selected_image' in st.session_state:
                 st.subheader("Selected Image")
-                st.image(st.session_state.selected_image, use_column_width=True)
+                st.image(st.session_state.selected_image)
 
             if 'selected_image' in st.session_state:
                 st.subheader("Selected Image")
-                st.image(st.session_state.selected_image, use_column_width=True)
+                st.image(st.session_state.selected_image)
             
         for key, value in fields.items():
             new_value = st.text_input(f"{key}", value=value)
