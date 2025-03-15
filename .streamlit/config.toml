@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#ff4b4b"  # Red accent color for buttons and interactive elements
+backgroundColor = "#121212"  # Dark background
+secondaryBackgroundColor = "#1e1e1e"  # Slightly lighter dark background (for widgets)
+textColor = "#ffffff"  # White text for contrast
+font = "sans serif"  # Available options: "sans serif", "serif", "monospace"
