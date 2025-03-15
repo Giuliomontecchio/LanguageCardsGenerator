@@ -265,7 +265,8 @@ def main():
 
             if col5.button("Add Card"):
                 create_note(fields, st.session_state.selected_language)
-                st.session_state.current_card += 1
+                if current_card < len(st.session_state.cards) - 1:
+                    st.session_state.current_card += 1
                 st.rerun()
 
             for key, value in fields.items():
