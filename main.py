@@ -125,7 +125,9 @@ def create_deck():
     # Generate the Anki package and save it to a file
     package = genanki.Package(st.session_state.deck)
     package.media_files = st.session_state.all_media
+    # Here you may add a switch for different languages
     package.write_to_file('Mein_Deutsch.apkg')
+    return "Mein_Deutsch.apkg"
 
 def get_image_urls(keyword:str, subdomain:str)->list[str]:
     # Starting from a keyword, creates a list of URLs which direct to images.
@@ -203,6 +205,17 @@ def main():
                 st.rerun()
     else:
         if st.session_state.image_viewer_urls:
+            if st.button("Add images"):
+                images_to_save = load_images(st.session_state.image_urls_to_add)
+                st.session_state.image_filename = []
+                for i,image in enumerate(images_to_save):
+                    st.session_state.image_filename.append(f"image{st.session_state.index}_{i}.png")
+                    image.save(f"image{st.session_state.index}_{i}.png")
+                st.success("Images saved successfully!")
+                st.session_state.image_viewer_urls = []
+                del st.session_state["image_clicked"]
+                st.rerun()
+                
             if "clicked" not in st.session_state:  # Ensure `clicked` is only computed once
                 st.session_state.image_clicked = clickable_images(
                     st.session_state.image_viewer_urls, 
@@ -223,17 +236,6 @@ def main():
                     },
                     key="image_viewer"
                 )
-
-            if st.button("Add images"):
-                images_to_save = load_images(st.session_state.image_urls_to_add)
-                st.session_state.image_filename = []
-                for i,image in enumerate(images_to_save):
-                    st.session_state.image_filename.append(f"image{st.session_state.index}_{i}.png")
-                    image.save(f"image{st.session_state.index}_{i}.png")
-                st.success("Images saved successfully!")
-                st.session_state.image_viewer_urls = []
-                del st.session_state["image_clicked"]
-                st.rerun()
 
             if st.session_state.image_clicked>-1:
                 st.subheader("Selected images")
@@ -274,8 +276,16 @@ def main():
                 fields[key] = new_value
 
             if st.button("Add Deck"):
-                create_deck()
+                deck_path = create_deck()
                 st.success("Deck added!")
+            
+                with open(deck_path, "rb") as file:
+                    st.download_button(
+                        label="Download Deck (.apkg)",
+                        data=file,
+                        file_name=deck_path,  # Using the same name as the generated file
+                        mime="application/octet-stream"
+                    )
 
 if __name__ == "__main__":
     main()
