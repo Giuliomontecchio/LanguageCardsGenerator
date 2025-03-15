@@ -24,9 +24,10 @@ Returns:
     header = ["baseT", "baseS", "fullT", "s1T", "s1S", "s2T", "s2S"]
     lines = src_text.strip().splitlines()
     for line in lines:
-        parts = line.split("|")
-        record = {header[i]: parts[i].strip() if i < len(parts) else "" for i in range(len(header))}
-        list_of_cards.append(record)
+        if line.strip():  # Check if the line is not empty
+            parts = line.split("|")
+            record = {header[i]: parts[i].strip() if i < len(parts) else "" for i in range(len(header))}
+            list_of_cards.append(record)
     return list_of_cards
 
 def color_gender(field, selected_language):
@@ -83,34 +84,47 @@ def create_note(fields, selected_language):
 
     # generate audio
     for i, key in enumerate(['baseT','fullT', 's1T', 's2T']):
-        if fields[key] == "": continue
+        if fields[key] == "": 
+            continue
         sound = gTTS(text=fields[key], lang=selected_language, slow=False)
-        sound.save(f"sound{fields['baseT']}_{i}.mp3")
+        sound.save(f"sound{st.session_state.index}_{i}.mp3")
 
     # color the record according to the gender (after sound to avoid reading of html)
-        fields['fullT'] = color_gender(fields['fullT'], selected_language)
-    
-    # audio can be substituted with a standard name and deleted right afterwards.
+    fields['fullT'] = color_gender(fields['fullT'], selected_language)
 
-    note = genanki.Note(
-            model=model_card_generator,
-        fields=[
-            fields['baseT'], f'[sound:sound{fields["baseT"]}_0.mp3]',
-            fields['baseS'], fields['fullT'], f'[sound:sound{fields["baseT"]}_1.mp3]',
-            fields['s1T'], f'[sound:sound{fields["baseT"]}_2.mp3]',
-            fields['s2T'], f'[sound:sound{fields["baseT"]}_3.mp3]', '' , '' 
-            ]
-    )
+    # Default fields (without images)
+    fields_note = [
+            fields['baseT'], f'[sound:sound{st.session_state.index}_0.mp3]',
+            fields['baseS'], fields['fullT'], f'[sound:sound{st.session_state.index}_1.mp3]',
+            fields['s1T'], f'[sound:sound{st.session_state.index}_2.mp3]',
+            fields['s2T'], f'[sound:sound{st.session_state.index}_3.mp3]'
+    ]
 
+    # Add images dynamically
+    images = [f'<img src="{img_name}">' for img_name in st.session_state.image_filename]
+    while len(images) < 2:  # Ensure 2 image placeholders
+        images.append('')
+
+    fields_note.extend(images)  # Add images to the fields
+
+    # Create the note
+    note = genanki.Note(model=model_card_generator, fields=fields_note)
+
+    # Extend the all media file
     for ind in range(4):
-        st.session_state.all_media.append(f"sound{fields['baseT']}_{ind}.mp3")
+        st.session_state.all_media.append(f"sound{st.session_state.index}_{ind}.mp3") 
+    for img_name in st.session_state.image_filename:
+        st.session_state.all_media.append(img_name)
 
     st.session_state.deck.add_note(note)  # Modify deck in session_state
+    st.session_state.index += 1
+    st.session_state.image_filename = []
+    st.session_state.image_urls_to_add = []
 
 def create_deck():
     # Generate the Anki package and save it to a file
-    package = genanki.Package(session_state.deck)
-    package.media_files = session_state.all_media
+    package = genanki.Package(st.session_state.deck)
+    package.media_files = st.session_state.all_media
     package.write_to_file('Mein_Deutsch.apkg')
 
 def get_image_urls(keyword:str, subdomain:str)->list[str]:
@@ -142,7 +156,7 @@ def load_images(urls):
     return images
 
 def main():
-    st.title("Anki Card Generator")
+    st.set_page_config(page_title="Anki Card Generator")
     # Initialize deck and all_media in session_state (if not already initialized)
     if 'cards' not in st.session_state:
         st.session_state.cards = []
@@ -156,10 +170,12 @@ def main():
         st.session_state.all_media = []  # Store media lis
     if 'index' not in st.session_state: # index to go up for each added card?
         st.session_state.index = 0
-    if 'images_to_add' not in st.session_state:
-        st.session_state.images_to_add = []
-    if 'urls' not in st.session_state:
-        st.session_state.urls = []
+    if 'image_urls_to_add' not in st.session_state:
+        st.session_state.image_urls_to_add = []
+    if 'image_filename' not in st.session_state:
+        st.session_state.image_filename = []
+    if 'image_viewer_urls' not in st.session_state:
+        st.session_state.image_viewer_urls = []
     if 'selected_language' not in st.session_state:
         st.session_state.selected_language = "de"
 
@@ -186,30 +202,46 @@ def main():
                 st.session_state.submitted = True  # Hide inputs after submission
                 st.rerun()
     else:
-        if st.session_state.urls:
+        if st.session_state.image_viewer_urls:
             if "clicked" not in st.session_state:  # Ensure `clicked` is only computed once
                 st.session_state.image_clicked = clickable_images(
-                    st.session_state.urls, 
-                    div_style={"display": "flex", "justify-content": "center", "flex-wrap": "wrap"}, 
+                    st.session_state.image_viewer_urls, 
+                    div_style={
+                        "display": "flex",
+                        "justify-content": "center",
+                        "flex-wrap": "wrap",
+                        "gap": "2px",  # Space between images
+                        "padding": "1px"
+                    },
+                    img_style={
+                        "margin": "5px", 
+                        "max-width": "none", 
+                        "max-height": "none", 
+                        "width": "auto", 
+                        "height": "auto", 
+                        "object-fit": "contain"
+                    },
                     key="image_viewer"
                 )
 
             if st.button("Add images"):
-                images_to_save = load_images(st.session_state.images_to_add)
+                images_to_save = load_images(st.session_state.image_urls_to_add)
+                st.session_state.image_filename = []
                 for i,image in enumerate(images_to_save):
+                    st.session_state.image_filename.append(f"image{st.session_state.index}_{i}.png")
                     image.save(f"image{st.session_state.index}_{i}.png")
                 st.success("Images saved successfully!")
-                st.session_state.urls = []
+                st.session_state.image_viewer_urls = []
                 del st.session_state["image_clicked"]
                 st.rerun()
 
             if st.session_state.image_clicked>-1:
                 st.subheader("Selected images")
-                st.session_state.images_to_add.append(st.session_state.urls[st.session_state.image_clicked])
-                st.session_state.images_to_add = st.session_state.images_to_add[-2:] 
-                st.image(st.session_state.images_to_add)
+                st.session_state.image_urls_to_add.append(st.session_state.image_viewer_urls[st.session_state.image_clicked])
+                st.session_state.image_urls_to_add = st.session_state.image_urls_to_add[-2:] 
+                st.image(st.session_state.image_urls_to_add)
 
-        if st.session_state.cards:
+        if st.session_state.cards and not st.session_state.image_viewer_urls:
             current_card = st.session_state.current_card
             fields = st.session_state.cards[current_card]
             
@@ -228,20 +260,21 @@ def main():
                 st.write(f"Card {current_card + 1}/{len(st.session_state.cards)}")
             
             if col4.button("Image"):
-                st.session_state.urls = get_image_urls(fields['baseT'], st.session_state.selected_language)
+                st.session_state.image_viewer_urls = get_image_urls(fields['baseT'], st.session_state.selected_language)
                 st.rerun()
 
             if col5.button("Add Card"):
                 create_note(fields, st.session_state.selected_language)
-                st.success("Card added!")
-            
-        for key, value in fields.items():
-            new_value = st.text_input(f"{key}", value=value)
-            fields[key] = new_value
+                st.session_state.current_card += 1
+                st.rerun()
 
-        if st.button("Add Deck"):
-            create_deck()
-            st.success("Deck added!")  # Show success message inside col2middle
+            for key, value in fields.items():
+                new_value = st.text_input(f"{key}", value=value)
+                fields[key] = new_value
+
+            if st.button("Add Deck"):
+                create_deck()
+                st.success("Deck added!")
 
 if __name__ == "__main__":
     main()
