@@ -79,7 +79,7 @@ def create_note(fields, selected_language):
     'qfmt': '{{baseT}} {{AbaseT}}',
     'afmt': '{{fullT}} {{AfullT}}<br>{{baseS}}<hr id="answer">{{image1}} {{image2}}<br> {{s1T}}{{As1T}}<br> {{s2T}} {{As2T}}',
     }
-    ], 
+    ],
     css = css)
 
     # generate audio
@@ -135,7 +135,7 @@ def get_image_urls(keyword:str, subdomain:str)->list[str]:
     # Create a Google Images URL for the search term
     search_url = f"https://www.google.{subdomain}/search?q={keyword}&tbm=isch"
     # Send an HTTP GET request to the URL
-    response = requests.get(search_url)
+    response = requests.get(search_url, timeout=10)
     # Parse the HTML content of the page
     soup = BeautifulSoup(response.text, 'html.parser')
     # Find image links in the page source
@@ -151,7 +151,7 @@ def load_images(urls):
     """Download and return images from URLs."""
     images = []
     for url in urls:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             img = Image.open(BytesIO(response.content))
             images.append(img)
