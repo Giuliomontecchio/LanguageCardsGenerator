@@ -51,14 +51,13 @@ def create_note(fields, selected_language):
     background-color: white;
     }"""
 
-
     model_card_generator = genanki.Model(
     1284830180,
     'Language (and reversed card) card generator',
     fields=[
+        {'name': 'baseS'},
         {'name': 'baseT'},
         {'name': 'AbaseT'},
-        {'name': 'baseS'},
         {'name': 'fullT'},
         {'name': 'AfullT'},
         {'name': 's1T'},
@@ -69,36 +68,31 @@ def create_note(fields, selected_language):
         {'name': 'image2'},
         ],
     templates=[
-    {
-    'name': 'Card 1',
+    {'name': 'Card 1',
     'qfmt': '{{baseS}}<br>{{image1}} {{image2}}',
-    'afmt': '{{baseS}}<br>{{image1}} {{image2}} <br> {{fullT}} {{AfullT}}<hr id="answer">{{s1T}} {{As1T}}<br> {{s2T}} {{As2T}}',
+    'afmt': '{{baseS}}<br>{{image1}} {{image2}} <br> {{fullT}} {{AfullT}}'
+    '<hr id="answer">{{s1T}} {{As1T}}<br> {{s2T}} {{As2T}}',
     },
-    {
-    'name': 'Card 2',
+    {'name': 'Card 2',
     'qfmt': '{{baseT}} {{AbaseT}}',
-    'afmt': '{{fullT}} {{AfullT}}<br>{{baseS}}<hr id="answer">{{image1}} {{image2}}<br> {{s1T}}{{As1T}}<br> {{s2T}} {{As2T}}',
+    'afmt': '{{fullT}} {{AfullT}}<br>{{baseS}}'
+    '<hr id="answer">{{image1}} {{image2}}<br> {{s1T}}{{As1T}}<br> {{s2T}} {{As2T}}',
     }
     ],
     css = css)
 
+    fields_note = [fields['baseS']]
     # generate audio
     for i, key in enumerate(['baseT','fullT', 's1T', 's2T']):
-        if fields[key] == "": 
+        if fields[key] == "":
+            fields_note.extend([fields[key], ''])
             continue
         sound = gTTS(text=fields[key], lang=selected_language, slow=False)
         sound.save(f"sound{st.session_state.index}_{i}.mp3")
-
-    # color the record according to the gender (after sound to avoid reading of html)
-    fields['fullT'] = color_gender(fields['fullT'], selected_language)
-
-    # Default fields (without images)
-    fields_note = [
-            fields['baseT'], f'[sound:sound{st.session_state.index}_0.mp3]',
-            fields['baseS'], fields['fullT'], f'[sound:sound{st.session_state.index}_1.mp3]',
-            fields['s1T'], f'[sound:sound{st.session_state.index}_2.mp3]',
-            fields['s2T'], f'[sound:sound{st.session_state.index}_3.mp3]'
-    ]
+        st.session_state.all_media.append(f"sound{st.session_state.index}_{i}.mp3")
+        if key == 'fullT':
+            fields['fullT'] = color_gender(fields['fullT'], selected_language)
+        fields_note.extend([fields[key], f'[sound:sound{st.session_state.index}_{i}.mp3]'])
 
     # Add images dynamically
     images = [f'<img src="{img_name}">' for img_name in st.session_state.image_filename]
@@ -111,8 +105,6 @@ def create_note(fields, selected_language):
     note = genanki.Note(model=model_card_generator, fields=fields_note)
 
     # Extend the all media file
-    for ind in range(4):
-        st.session_state.all_media.append(f"sound{st.session_state.index}_{ind}.mp3") 
     for img_name in st.session_state.image_filename:
         st.session_state.all_media.append(img_name)
 
@@ -126,8 +118,9 @@ def create_deck():
     package = genanki.Package(st.session_state.deck)
     package.media_files = st.session_state.all_media
     # Here you may add a switch for different languages
-    package.write_to_file('Mein_Deutsch.apkg')
-    return "Mein_Deutsch.apkg"
+    file_name = f'{st.session_state.deck.name}.apkg'
+    package.write_to_file(file_name)
+    return file_name
 
 def get_image_urls(keyword:str, subdomain:str)->list[str]:
     # Starting from a keyword, creates a list of URLs which direct to images.
@@ -172,10 +165,6 @@ def main():
         st.session_state.cards = []
         st.session_state.current_card = 0
         st.session_state.submitted = False  # Track submission state
-    if "deck" not in st.session_state:
-        deck_id = 87654321  
-        deck_name = 'Mein_Deutsch'
-        st.session_state.deck = genanki.Deck(deck_id, deck_name)  # Store the deck
     if "all_media" not in st.session_state:
         st.session_state.all_media = []  # Store media lis
     if 'index' not in st.session_state: # index to go up for each added card?
@@ -186,19 +175,16 @@ def main():
         st.session_state.image_filename = []
     if 'image_viewer_urls' not in st.session_state:
         st.session_state.image_viewer_urls = []
-    if 'selected_language' not in st.session_state:
-        st.session_state.selected_language = "de"
 
     if not st.session_state.submitted:
-
-        # Define language options with flag emojis
+        # Define language options
         language_options = ["de", "es", "fr"]
 
         # Create the selectbox
         selected_language = st.selectbox(
             "Choose a language",
             language_options,
-            index=0 
+            index = 0
         )
 
         st.session_state.selected_language = selected_language
@@ -210,7 +196,17 @@ def main():
                 st.session_state.cards = create_list_of_cards(user_input)
                 st.session_state.current_card = 0
                 st.session_state.submitted = True  # Hide inputs after submission
-                st.rerun()
+                if 'deck' not in st.session_state and 'selected_language' in st.session_state:
+                    deck_info = {
+                        "de": (87654321, "Deutsch"),
+                        "es": (87654322, "Espanol"),
+                        "fr": (87654323, "Francais")
+                        }
+                    lang = st.session_state.selected_language
+                    deck_id, deck_name = deck_info.get(lang, (87654321, "Deutsch"))
+                    st.session_state.deck = genanki.Deck(deck_id, deck_name)
+            st.rerun()
+
     else:
         if st.session_state.image_viewer_urls:
             if st.button("Add images"):
