@@ -1,8 +1,8 @@
+from io import BytesIO
 import streamlit as st
 import genanki
 from gtts import gTTS
 from PIL import Image
-from io import BytesIO
 import requests
 from bs4 import BeautifulSoup
 from st_clickable_images import clickable_images
@@ -157,7 +157,15 @@ def load_images(urls):
             images.append(img)
     return images
 
+def reset_app():
+    st.session_state.reset = True
+
 def main():
+    if st.session_state.get("reset"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+
     st.set_page_config(page_title="Anki Card Generator")
     # Initialize deck and all_media in session_state (if not already initialized)
     if 'cards' not in st.session_state:
@@ -284,7 +292,8 @@ def main():
                         label="Download Deck (.apkg)",
                         data=file,
                         file_name=deck_path,  # Using the same name as the generated file
-                        mime="application/octet-stream"
+                        mime="application/octet-stream",
+                        on_click=reset_app
                     )
 
 if __name__ == "__main__":
