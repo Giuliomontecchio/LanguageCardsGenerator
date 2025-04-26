@@ -209,20 +209,32 @@ def main():
 
     else:
         if st.session_state.image_viewer_urls:
-            if st.button("Add images"):
-                images_to_save = load_images(st.session_state.image_urls_to_add)
-                st.session_state.image_filename = []
-                for i,image in enumerate(images_to_save):
-                    st.session_state.image_filename.append(f"image{st.session_state.index}_{i}.png")
-                    image.save(f"image{st.session_state.index}_{i}.png")
-                st.success("Images saved successfully!")
-                st.session_state.image_viewer_urls = []
-                del st.session_state["image_clicked"]
-                st.rerun()
+
+            col_cancel, col_add = st.columns(2)
+
+            with col_cancel:
+                if st.button("Cancel"):
+                    st.session_state.image_viewer_urls = []
+                    st.session_state.image_urls_to_add = []
+                    if "image_clicked" in st.session_state:
+                        del st.session_state["image_clicked"]
+                    st.rerun()
+
+            with col_add:
+                if st.button("Add images"):
+                    images_to_save = load_images(st.session_state.image_urls_to_add)
+                    st.session_state.image_filename = []
+                    for i, image in enumerate(images_to_save):
+                        st.session_state.image_filename.append(f"image{st.session_state.index}_{i}.png")
+                        image.save(f"image{st.session_state.index}_{i}.png")
+                    st.success("Images saved successfully!")
+                    st.session_state.image_viewer_urls = []
+                    del st.session_state["image_clicked"]
+                    st.rerun()
                 
             if "clicked" not in st.session_state:  # Ensure `clicked` is only computed once
                 st.session_state.image_clicked = clickable_images(
-                    st.session_state.image_viewer_urls, 
+                    st.session_state.image_viewer_urls,
                     div_style={
                         "display": "flex",
                         "justify-content": "center",
@@ -244,7 +256,7 @@ def main():
             if st.session_state.image_clicked>-1:
                 st.subheader("Selected images")
                 st.session_state.image_urls_to_add.append(st.session_state.image_viewer_urls[st.session_state.image_clicked])
-                st.session_state.image_urls_to_add = st.session_state.image_urls_to_add[-2:] 
+                st.session_state.image_urls_to_add = st.session_state.image_urls_to_add[-2:]
                 st.image(st.session_state.image_urls_to_add)
 
         if st.session_state.cards and not st.session_state.image_viewer_urls:
