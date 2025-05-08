@@ -6,6 +6,8 @@ from PIL import Image
 import requests
 from bs4 import BeautifulSoup
 from st_clickable_images import clickable_images
+import tempfile
+import os
 
 # Parser function
 def create_list_of_cards(src_text: str) -> list[dict]:
@@ -117,10 +119,12 @@ def create_deck():
     # Generate the Anki package and save it to a file
     package = genanki.Package(st.session_state.deck)
     package.media_files = st.session_state.all_media
-    # Here you may add a switch for different languages
-    file_name = f'{st.session_state.deck.name}.apkg'
-    package.write_to_file(file_name)
-    return file_name
+
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".apkg")
+    package.write_to_file(temp_file.name)
+    temp_file.close()  # Ensure file is saved
+
+    return temp_file.name
 
 def get_image_urls(keyword:str, subdomain:str)->list[str]:
     # Starting from a keyword, creates a list of URLs which direct to images.
@@ -294,12 +298,14 @@ def main():
             if st.button("Add Deck"):
                 deck_path = create_deck()
                 st.success("Deck added!")
+
+                download_name = f"{st.session_state.deck.name}.apkg"
             
                 with open(deck_path, "rb") as file:
                     st.download_button(
                         label="Download Deck (.apkg)",
                         data=file,
-                        file_name=deck_path,  # Using the same name as the generated file
+                        file_name=download_name,  # Using the same name as the generated file
                         mime="application/octet-stream",
                         on_click=reset_app
                     )
