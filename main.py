@@ -6,7 +6,6 @@ from PIL import Image
 import requests
 from bs4 import BeautifulSoup
 from st_clickable_images import clickable_images
-import tempfile
 import os
 
 # Parser function
@@ -116,15 +115,20 @@ def create_note(fields, selected_language):
     st.session_state.image_urls_to_add = []
 
 def create_deck():
-    # Generate the Anki package and save it to a file
+    # Create the Anki package
     package = genanki.Package(st.session_state.deck)
     package.media_files = st.session_state.all_media
 
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".apkg")
-    package.write_to_file(temp_file.name)
-    temp_file.close()  # Ensure file is saved
+    # Write package to in-memory buffer instead of file
+    output = BytesIO()
+    package.write_to_file(output)  # This works because genanki supports file-like objects
 
-    return temp_file.name
+    # Move the cursor to the beginning of the buffer
+    output.seek(0)
+
+    # Save in session state for later use (e.g., download)
+    st.session_state.apkg_data = output.read()
+    st.session_state.file_name = f'{st.session_state.deck.name}.apkg'
 
 def get_image_urls(keyword:str, subdomain:str)->list[str]:
     # Starting from a keyword, creates a list of URLs which direct to images.
@@ -159,8 +163,20 @@ def reset_app():
 
 def main():
     if st.session_state.get("reset"):
+        # Clean local files
+        files_to_delete = st.session_state.all_media + [st.session_state.file_name]
+
+        for path in files_to_delete:
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    st.warning(f"Could not delete {path}: {e}")
+        
+        # Clean session states
         for key in list(st.session_state.keys()):
             del st.session_state[key]
+
         st.rerun()
 
     st.set_page_config(page_title="Anki Card Generator")
@@ -296,19 +312,18 @@ def main():
                 fields[key] = new_value
 
             if st.button("Add Deck"):
-                deck_path = create_deck()
-                st.success("Deck added!")
-
-                download_name = f"{st.session_state.deck.name}.apkg"
-            
-                with open(deck_path, "rb") as file:
-                    st.download_button(
-                        label="Download Deck (.apkg)",
-                        data=file,
-                        file_name=download_name,  # Using the same name as the generated file
-                        mime="application/octet-stream",
-                        on_click=reset_app
-                    )
-
+                create_deck()
+                
+            if 'apkg_data' in st.session_state:
+                st.download_button(
+                    label="Download Anki Deck",
+                    data=st.session_state.apkg_data,
+                    file_name=st.session_state.file_name,
+                    mime="application/octet-stream",
+                    on_click="ignore"
+                )
+                if st.button("Reset"):
+                    reset_app()
+                    st.rerun()
 if __name__ == "__main__":
     main()
